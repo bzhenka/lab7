@@ -28,6 +28,8 @@ import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveAction;
 
 public class TCPServer implements NetworkServer {
 
@@ -41,7 +43,7 @@ public class TCPServer implements NetworkServer {
     private final Selector selector;
     private final ClientCommandHandler clientCommandHandler;
     private final ServerCommandHandler serverCommandHandler;
-
+    private final ForkJoinPool sendPool = new ForkJoinPool();
     private final Receiver receiver;
 
     private boolean canExit = false;
@@ -158,36 +160,59 @@ public class TCPServer implements NetworkServer {
     }
 
     private void read(SelectionKey key) throws IOException {
-        SocketChannel sc = (SocketChannel) key.channel();
-        readBuffer.clear();
-        int bytesRead;
-        try {
-            bytesRead = sc.read(readBuffer);
-        } catch (IOException e) {
-            key.cancel();
-            sc.close();
-            return;
-        }
-        if (bytesRead == -1) {
-            key.cancel();
-            return;
-        }
-        String input = new String(readBuffer.array(), 0, bytesRead, StandardCharsets.UTF_8);
+        Runnable readTask = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    SocketChannel sc = (SocketChannel) key.channel();
+                    readBuffer.clear();
+                    int bytesRead;
+                    try {
+                        bytesRead = sc.read(readBuffer);
+                    } catch (IOException e) {
+                        key.cancel();
+                        sc.close();
+                        return;
+                    }
+                    if (bytesRead == -1) {
+                        key.cancel();
+                        return;
+                    }
+                    String input = new String(readBuffer.array(), 0, bytesRead, StandardCharsets.UTF_8);
+                    createResponse(sc);
+                } catch (IOException e) {
+                    System.out.println(e.getMessage());
+                }
+            }
+        };
+        Thread readThread = new Thread(readTask);
+        readThread.start();
 
-        Response response;
-        try {
-            response = handleRequest(readBuffer);
-        } catch (ClassNotFoundException e) {
-            response = new ServerErrorResponse(e.getMessage());
-        }
-        sc.register(selector, SelectionKey.OP_WRITE, response);
-
-//        try {
-//            TimeUnit.SECONDS.sleep(10);
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
     }
+    private void createResponse(SocketChannel sc) {
+        Runnable createResponseTask = new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Response response;
+                    try {
+                        response = handleRequest(readBuffer);
+                    } catch (ClassNotFoundException e) {
+                        response = new ServerErrorResponse(e.getMessage());
+                    }
+                    sc.register(selector, SelectionKey.OP_WRITE, response);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+
+                }
+            }
+
+        };
+        Thread createResponseThread = new Thread(createResponseTask);
+        createResponseThread.start();
+    }
+
+
 
     private Response handleRequest(ByteBuffer buffer) throws IOException, ClassNotFoundException {
         Request request;
@@ -207,18 +232,27 @@ public class TCPServer implements NetworkServer {
         return response;
     }
 
-    private void write(SelectionKey key) throws IOException {
-        // Get socket channel and response
-        SocketChannel sc = (SocketChannel) key.channel();
-        Response response = (Response) key.attachment();
+    private void write(SelectionKey key) {
+        RecursiveAction writeAction = new RecursiveAction() {
+            @Override
+            protected void compute() {
+                try {
+                    SocketChannel sc = (SocketChannel) key.channel();
+                    Response response = (Response) key.attachment();
 
-        ByteBuffer writeBuffer = serializeObject(response);
-        writeBuffer.flip();
-        while (writeBuffer.hasRemaining()) {
-            sc.write(writeBuffer);
-        }
+                    ByteBuffer writeBuffer = serializeObject(response);
+                    writeBuffer.flip();
+                    while (writeBuffer.hasRemaining()) {
+                        sc.write(writeBuffer);
+                    }
 
-        sc.register(selector, SelectionKey.OP_READ);
+                    sc.register(selector, SelectionKey.OP_READ);
+                } catch (IOException e) {
+                    System.out.println(e.getMessage());
+                }
+            }
+    };
+    sendPool.execute(writeAction);
     }
 
     private ByteBuffer serializeObject(Object object) throws IOException {
