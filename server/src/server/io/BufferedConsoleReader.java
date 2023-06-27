@@ -1,5 +1,6 @@
-package server.exceptions;
+package server.io;
 
+import server.exceptions.EndOfInputException;
 import server.io.Reader;
 
 import java.io.BufferedReader;

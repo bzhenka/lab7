@@ -3,6 +3,8 @@ package dateBase;
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.Scanner;
 
 public abstract class DataBasePassword {
@@ -19,4 +21,5 @@ public abstract class DataBasePassword {
         }
 
     }
+    abstract public ConnectionDateBase createConnection() throws SQLException, IOException;
 }

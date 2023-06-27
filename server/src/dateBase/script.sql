@@ -1,3 +1,13 @@
+DROP TABLE IF EXISTS client CASCADE;
+DROP TABLE IF EXISTS person CASCADE;
+DROP TABLE IF EXISTS movie CASCADE;
+DROP TABLE IF EXISTS clientMovie CASCADE;
+
+DROP TYPE IF EXISTS movieGenre CASCADE;
+DROP TYPE IF EXISTS mpaaRating CASCADE;
+DROP TYPE IF EXISTS color CASCADE;
+DROP TYPE IF EXISTS country CASCADE;
+
 CREATE TYPE movieGenre AS ENUM('DRAMA', 'COMEDY', 'TRAGEDY', 'THRILLER', 'SCIENCE_FICTION');
 CREATE TYPE mpaaRating AS ENUM('G', 'PG', 'PG_13', 'R', 'NC_17');
 CREATE TYPE color AS ENUM('RED', 'ORANGE', 'YELLOW', 'GREEN', 'BLUE', 'BROWN', 'BLACK', 'WHITE');
@@ -7,8 +17,10 @@ CREATE TABLE person(
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL CHECK ( name <> '' ),
     weight INTEGER NOT NULL CHECK (weight > 0),
+    age INTEGER NOT NULL CHECK ( age > 0 ),
     eyeColor color NOT NULL,
     hairColor color NOT NULL,
+    nationality country NOT NULL,
     x DOUBLE PRECISION NOT NULL,
     y FLOAT NOT NULL,
     z INTEGER NOT NULL
@@ -22,14 +34,15 @@ CREATE TABLE movie(
     creationDate TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     oscarsCount INTEGER NOT NULL CHECK (oscarsCount > 0),
     genre movieGenre NOT NULL,
-    operator INTEGER NOT NULL REFERENCES person
+    mpaarating mpaaRating NOT NULL,
+    operator INTEGER NOT NULL REFERENCES person(id) ON DELETE RESTRICT UNIQUE NOT NULL
 );
 CREATE TABLE client(
-    login INTEGER PRIMARY KEY,
-    password VARCHAR(255) NOT NULL
+    login TEXT PRIMARY KEY,
+    password BYTEA NOT NULL,
+    salt BYTEA NOT NULL
 );
 CREATE TABLE clientMovie(
-    client INTEGER REFERENCES client(login),
-    movie INTEGER REFERENCES movie(id),
-    PRIMARY KEY (client, movie)
-)
+    client TEXT DEFAULT '' references client(login) ON DELETE SET DEFAULT NOT NULL,
+    movie INTEGER REFERENCES movie(id) ON DELETE CASCADE PRIMARY KEY
+);

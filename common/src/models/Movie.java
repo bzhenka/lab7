@@ -51,7 +51,9 @@ public class Movie implements Serializable {
         return coordinates;
     }
 
-
+    public void setID(Integer id) {
+        this.id = id;
+    }
 
     public LocalDate getCreationDate() {
         return creationDate;

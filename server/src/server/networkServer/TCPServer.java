@@ -10,7 +10,7 @@ import responses.ServerErrorResponse;
 import server.ClientCommandHandler;
 import server.Receiver;
 import server.ServerCommandHandler;
-import server.exceptions.BufferedConsoleReader;
+import server.io.BufferedConsoleReader;
 import server.exceptions.InvalidCommandException;
 import server.exceptions.InvalidRequestException;
 import server.exceptions.WrongNumberArgumentsException;
